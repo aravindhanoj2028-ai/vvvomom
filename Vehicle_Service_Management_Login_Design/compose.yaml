@@ -1,0 +1,65 @@
+services:
+  web:
+    build: .
+    image: vehicle-service-app:1.0
+    container_name: vehicle-service-web
+    ports:
+      - "8080:80"
+    environment:
+      DB_HOST: db
+      DB_NAME: vehicle_service
+      DB_USER: vehicle_user
+      DB_PASSWORD: demo_password_change_me
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: VehicleAdmin@2026
+    depends_on:
+      phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: vehicle-service-phpmyadmin
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: vehicle-service-phpmyadmin
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.4
+    container_name: vehicle-service-db
+    environment:
+      MYSQL_DATABASE: vehicle_service
+      MYSQL_USER: vehicle_user
+      MYSQL_PASSWORD: demo_password_change_me
+      MYSQL_ROOT_PASSWORD: demo_root_change_me
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pdemo_root_change_me"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  mysql_data:

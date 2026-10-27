@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vehicle-service-config
+data:
+  DB_HOST: vehicle-service-db
+  DB_NAME: vehicle_service
+  DB_USER: vehicle_user

@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vehicle-service-db-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vehicle-service-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vehicle-service-db
+  template:
+    metadata:
+      labels:
+        app: vehicle-service-db
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.4
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_DATABASE
+              value: vehicle_service
+            - name: MYSQL_USER
+              value: vehicle_user
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vehicle-service-db-secret
+                  key: MYSQL_ROOT_PASSWORD
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vehicle-service-db-secret
+                  key: MYSQL_PASSWORD
+          volumeMounts:
+            - name: mysql-storage
+              mountPath: /var/lib/mysql
+            - name: init-sql
+              mountPath: /docker-entrypoint-initdb.d/01-init.sql
+              subPath: init.sql
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD"]
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: mysql-storage
+          persistentVolumeClaim:
+            claimName: vehicle-service-db-pvc
+        - name: init-sql
+          configMap:
+            name: vehicle-service-db-init
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vehicle-service-db-init
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS appointments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      customer_name VARCHAR(100) NOT NULL,
+      email VARCHAR(150) NOT NULL,
+      vehicle VARCHAR(120) NOT NULL,
+      service_name VARCHAR(100) NOT NULL,
+      service_date DATE NOT NULL,
+      status ENUM('Scheduled','In Progress','Completed','Delivered') NOT NULL DEFAULT 'Scheduled',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vehicle-service-db
+spec:
+  selector:
+    app: vehicle-service-db
+  ports:
+    - port: 3306
+      targetPort: 3306
+  type: ClusterIP
